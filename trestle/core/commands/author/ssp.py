@@ -268,6 +268,7 @@ class SSPAssemble(AuthorCommonCommand):
         self.add_argument('-o', '--output', help=output_help_str, required=True, type=str)
         self.add_argument('-r', '--regenerate', action='store_true', help=const.HELP_REGENERATE)
         self.add_argument('-vn', '--version', help=const.HELP_VERSION, required=False, type=str)
+        self.add_argument('-ls', '--leveraged-ssp', help=const.HELP_LEVERAGED, required=False, type=str)
 
     @staticmethod
     def _get_ssp_component(ssp: ossp.SystemSecurityPlan, gen_comp: generic.GenericComponent) -> ossp.SystemComponent:
@@ -623,6 +624,10 @@ class SSPAssemble(AuthorCommonCommand):
             if os.path.exists(ipath):
                 reader = ExportReader(ipath, ssp)
                 ssp = reader.read_exports_from_markdown()
+
+            if args.leveraged_ssp:
+                leverager = Leverager(trestle_root, ssp, args.leveraged_ssp)
+                leverager.add_leveraged_info()
 
             ssp.import_profile.href = profile_href
 
