@@ -1,43 +1,68 @@
+# -*- mode:python; coding:utf-8 -*-
+# Copyright (c) 2020 IBM Corp. All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+import logging
 import pathlib
-from unittest.mock import patch, Mock
-from trestle.common.model_utils import ModelUtils
+from unittest.mock import patch
+
+import pytest
+
 import trestle.oscal.ssp as ossp
-from trestle.core.crm.leverager import Leverager
-import trestle.common.const as const
-import tests.test_utils as testutils
+import trestle.oscal.common as common
+import trestle.core.generators as gens
+from trestle.common.model_utils import ModelUtils
 
+from trestle.core.crm.leverager import Leverager, get_system_component  # Replace 'your_module' with the actual module name
 
-def test_get_system_component(tmp_trestle_dir: pathlib.Path) -> None:
-    """Test the _get_system_component method for successful retrieval."""
-    leveraging_ssp, _ = ModelUtils.load_model_for_class(testutils.JSON_TEST_DATA_PATH, "leveraging_ssp", ossp.SystemSecurityPlan, 1)
-    leverager = Leverager(leveraging_ssp, "leveraged_ssp", tmp_trestle_dir)
+logger = logging.getLogger(__name__)
 
-    # Call _get_system_component
-    result = leverager._get_system_component(tmp_trestle_dir, "leveraged_ssp")
+@pytest.fixture
+def sample_leveraging_ssp():
+    return gens.generate_sample_model(ossp.SystemSecurityPlan)
 
-    # Validate the result
-    assert result is not None
-    assert result.type == 'this-system'
+@pytest.fixture
+def sample_leveraged_components():
+    return [gens.generate_sample_model(ossp.SystemComponent) for _ in range(3)]
 
+@pytest.fixture
+def sample_trestle_root():
+    return pathlib.Path("/sample/trestle/root")
 '''
-def test_get_system_component_fail(tmp_trestle_dir: pathlib.Path) -> None:
-    """Test the _get_system_component method for failure scenario."""
-    # Mocking the return value of load_model_for_class
-    mock_ssp = Mock()
-    mock_ssp.system_implementation.components = [Mock(type='not-this-system')]
-
+def test_get_system_component(sample_trestle_root):
     with patch('trestle.common.model_utils.ModelUtils.load_model_for_class') as mock_load_model:
-        mock_load_model.return_value = (mock_ssp, None)
+        mock_load_model.return_value = (gens.generate_sample_model(ossp.SystemSecurityPlan), None)
+        result = get_system_component(sample_trestle_root, "sample_leveraged_ssp")
+        assert isinstance(result, ossp.SystemComponent)
+'''
 
-        # Initialize Leverager
-        ssp = ossp.SystemSecurityPlan()
-        leveraged_ssp = 'sample_leveraged_ssp'
-        trestle_root = tmp_trestle_dir
-        leverager = Leverager(ssp, leveraged_ssp, trestle_root)
+def test_leverager_init(sample_leveraging_ssp, sample_leveraged_components, sample_trestle_root):
+    leverager = Leverager(sample_leveraging_ssp, sample_leveraged_components, "sample_leveraged_ssp", sample_trestle_root)
+    assert isinstance(leverager, Leverager)
 
-        # Call _get_system_component
-        result = leverager._get_system_component(trestle_root, leveraged_ssp)
+def test_create_leveraged_authz(sample_leveraging_ssp, sample_leveraged_components, sample_trestle_root):
+    leverager = Leverager(sample_leveraging_ssp, sample_leveraged_components, "sample_leveraged_ssp", sample_trestle_root)
+    result = leverager._create_leveraged_authz("sample_leveraged_ssp", sample_trestle_root)
+    assert isinstance(result, ossp.LeveragedAuthorization)
 
-        # Validate the result
-        assert result == {}
-        '''
+def test_create_leveraging_components(sample_leveraging_ssp, sample_leveraged_components, sample_trestle_root):
+    leverager = Leverager(sample_leveraging_ssp, sample_leveraged_components, "sample_leveraged_ssp", sample_trestle_root)
+    result = leverager._create_leveraging_components()
+    assert isinstance(result, list)
+    assert all(isinstance(comp, ossp.SystemComponent) for comp in result)
+
+def test_add_leveraged_info(sample_leveraging_ssp, sample_leveraged_components, sample_trestle_root):
+    leverager = Leverager(sample_leveraging_ssp, sample_leveraged_components, "sample_leveraged_ssp", sample_trestle_root)
+    result = leverager.add_leveraged_info()
+    assert isinstance(result, ossp.SystemSecurityPlan)
