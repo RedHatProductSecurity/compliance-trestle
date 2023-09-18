@@ -45,6 +45,7 @@ from trestle.core.control_interface import ControlInterface, ParameterRep
 from trestle.core.control_reader import ControlReader
 from trestle.core.crm.export_reader import ExportReader
 from trestle.core.crm.export_writer import ExportWriter
+from trestle.core.crm.leverager import Leverager
 from trestle.core.models.file_content_type import FileContentType
 from trestle.core.profile_resolver import ProfileResolver
 from trestle.core.remote.cache import FetcherFactory
@@ -621,13 +622,30 @@ class SSPAssemble(AuthorCommonCommand):
 
             # If this is a leveraging SSP, update it with the retrieved the exports from the leveraged SSP
             ipath = pathlib.Path(md_path, const.INHERITANCE_VIEW_DIR)
+            reader: ExportReader
             if os.path.exists(ipath):
                 reader = ExportReader(ipath, ssp)
                 ssp = reader.read_exports_from_markdown()
 
             if args.leveraged_ssp:
-                leverager = Leverager(trestle_root, ssp, args.leveraged_ssp)
+                local_path = f'{const.MODEL_DIR_SSP}/{args.leveraged_ssp}/system-security-plan.json'
+                ssp_path = trestle_root / local_path
+                leveraged_ssp_object: ossp.SystemSecurityPlan
+                _, _, leveraged_ssp_object = ModelUtils.load_distributed(ssp_path, trestle_root)
+
+                # The reader is set, filter the components to only those that are leveraged
+                components: List[ossp.SystemComponent] = []
+                if reader:
+                    leveraged_components = reader.get_leveraged_components()
+                    for component in as_list(leveraged_ssp_object.system_implementation.components):
+                        if component.title in leveraged_components:
+                            components.append(component)
+
+                # Update the ssp with the leveraged components
+                leverager = Leverager(ssp, components, local_path, trestle_root)
                 leverager.add_leveraged_info()
+
+                ssp.system_implementation.components = components
 
             ssp.import_profile.href = profile_href
 

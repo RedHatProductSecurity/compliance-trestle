@@ -51,11 +51,19 @@ class ExportReader:
         Arguments:
             root_path: A root path object where an SSP's inheritance markdown is located.
             ssp: A system security plan object that will be updated with the inheritance information.
+
+        Notes:
+            The mapped components list is used to track which components have been mapped to controls in the markdown.
+            It can be retrieved with the get_leveraged_components method. This will be empty until the
+            read_exports_from_markdown method is called.
         """
         self._ssp: ossp.SystemSecurityPlan = ssp
 
         # Create a dictionary of implemented requirements keyed by control id for merging operations
         self._implemented_requirements: Dict[str, ossp.ImplementedRequirement] = self._create_impl_req_dict()
+
+        # List of component titles that have been mapped to controls in the Markdown
+        self._mapped_components: List[str] = []
 
         self._root_path: pathlib.Path = root_path
 
@@ -81,6 +89,10 @@ class ExportReader:
 
         self._ssp.control_implementation.implemented_requirements = list(self._implemented_requirements.values())
         return self._ssp
+
+    def get_leveraged_components(self) -> List[str]:
+        """Get a list of component titles that have been mapped to controls in the Markdown."""
+        return self._mapped_components
 
     def _merge_exports_implemented_requirements(self, markdown_dict: InheritanceViewDict) -> None:
         """Merge all exported inheritance info from the markdown into the implemented requirement dict."""
@@ -203,6 +215,7 @@ class ExportReader:
             uuid_by_title[component.title] = component.uuid
 
         for comp_dir in os.listdir(self._root_path):
+            is_comp_leveraged = False
             for control_dir in os.listdir(self._root_path.joinpath(comp_dir)):
 
                 # Initialize the by component dictionary for the control directory
@@ -237,5 +250,10 @@ class ExportReader:
                         by_comp_dict[comp_uuid] = (inherited, satisfied)
                 # If there is information in the by_component dictionary, then update the markdown dictionary
                 if by_comp_dict:
+                    is_comp_leveraged = True
                     markdown_dict[control_dir] = by_comp_dict
+
+            if is_comp_leveraged:
+                self._mapped_components.append(comp_dir)
+
         return markdown_dict
