@@ -102,6 +102,7 @@ class SSPInheritanceAPI():
         leveraged_auths: List[ossp.LeveragedAuthorization] = []
         leveraged_auth: ossp.LeveragedAuthorization = gens.generate_sample_model(ossp.LeveragedAuthorization)
         leveraged_components: List[str] = reader.get_leveraged_components()
+
         if not leveraged_components:
             logger.warn(
                 'No leveraged components mapped in inheritance view.',
@@ -143,10 +144,9 @@ class SSPInheritanceAPI():
             # If the leveraged component already exists, update the title, description, type, and status
             original_comp_uuid = props_dict[const.INHERITED_UUID]
             if original_comp_uuid in mapped_components:
-                original_component = mapped_components[original_comp_uuid]
+                original_component = mapped_components.pop(original_comp_uuid)
                 self._update_leveraged_system_component(component, original_component, leveraged_auth.uuid)
                 new_components.append(component)
-                del mapped_components[original_comp_uuid]
 
         # Add any remaining components to the new components
         for component in mapped_components.values():

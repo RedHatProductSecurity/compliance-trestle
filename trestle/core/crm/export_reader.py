@@ -124,12 +124,10 @@ class ExportReader:
             # If the control id existing in the markdown, then update the by_components
             if implemented_requirement.control_id in markdown_dict:
 
-                by_comp_dict: ByComponentDict = markdown_dict[implemented_requirement.control_id]
+                # Delete the entry from the markdown_dict once processed to avoid duplicates
+                by_comp_dict: ByComponentDict = markdown_dict.pop(implemented_requirement.control_id)
 
                 self._update_type_with_by_comp(implemented_requirement, by_comp_dict)
-
-                # Delete the entry from the markdown_dict once processed to avoid duplicates
-                del markdown_dict[implemented_requirement.control_id]
 
             # Update any implemented requirements statements assemblies
             new_statements: List[ossp.Statement] = []
@@ -140,12 +138,10 @@ class ExportReader:
                 # If the statement id existing in the markdown, then update the by_components
                 if statement_id in markdown_dict:
 
-                    by_comp_dict: ByComponentDict = markdown_dict[statement_id]
+                    # Delete the entry from the markdown_dict once processed to avoid duplicates
+                    by_comp_dict: ByComponentDict = markdown_dict.pop(statement_id)
 
                     self._update_type_with_by_comp(stm, by_comp_dict)
-
-                    # Delete the entry from the markdown_dict once processed to avoid duplicates
-                    del markdown_dict[statement_id]
 
                 new_statements.append(stm)
 
@@ -156,15 +152,12 @@ class ExportReader:
         new_by_comp: List[ossp.ByComponent] = []
 
         by_comp: ossp.ByComponent
+        comp_inheritance_info: Tuple[List[ossp.Inherited], List[ossp.Satisfied]]
         for by_comp in as_list(with_bycomp.by_components):
 
             # If the by_component uuid exists in the by_comp_dict, then update it
             # If not, clear the by_component inheritance information
-            comp_inheritance_info: Tuple[List[ossp.Inherited], List[ossp.Satisfied]] = ([], [])
-            if by_comp.component_uuid in by_comp_dict:
-                comp_inheritance_info = by_comp_dict[by_comp.component_uuid]
-                # Delete the entry from the by_comp_dict once processed to avoid duplicates
-                del by_comp_dict[by_comp.component_uuid]
+            comp_inheritance_info = by_comp_dict.pop(by_comp.component_uuid, ([], []))
 
             bycomp_interface = ByComponentInterface(by_comp)
             by_comp = bycomp_interface.reconcile_inheritance_by_component(
@@ -229,35 +222,31 @@ class ExportReader:
 
         for comp_dir in os.listdir(self._root_path):
             is_comp_leveraged = False
-            for control_dir in os.listdir(self._root_path.joinpath(comp_dir)):
+            for control_dir in os.listdir(os.path.join(self._root_path, comp_dir)):
+                control_dir_path = os.path.join(self._root_path, comp_dir, control_dir)
 
-                # Initialize the by component dictionary for the control directory
+                # Initialize the by_component dictionary for the control directory
                 # If it exists in the markdown dictionary, then update it with the new information
-                by_comp_dict: ByComponentDict = {}
-                if control_dir in markdown_dict:
-                    by_comp_dict = markdown_dict[control_dir]
+                by_comp_dict = markdown_dict.get(control_dir, {})
 
-                for file in os.listdir(self._root_path.joinpath(comp_dir, control_dir)):
-                    reader = InheritanceMarkdownReader(self._root_path.joinpath(comp_dir, control_dir, file))
+                for file in os.listdir(control_dir_path):
+                    file_path = pathlib.Path(control_dir_path).joinpath(file)
+                    reader = InheritanceMarkdownReader(file_path)
                     leveraged_info = reader.process_leveraged_statement_markdown()
 
                     # If there is no leveraged information, then skip this file
                     if leveraged_info is None:
                         continue
 
-                    for comp in leveraged_info.leveraging_comp_titles:
+                    # If a file has leveraged information, then set the flag to indicate the component is leveraged
+                    is_comp_leveraged = True
 
+                    for comp in leveraged_info.leveraging_comp_titles:
                         if comp not in uuid_by_title:
                             raise TrestleError(f'Component {comp} does not exist in the target SSP')
 
                         comp_uuid = uuid_by_title[comp]
-                        inherited: List[ossp.Inherited] = []
-                        satisfied: List[ossp.Satisfied] = []
-
-                        # If the component uuid exists in the by_component dictionary, then update it
-                        if comp_uuid in by_comp_dict:
-                            inherited = by_comp_dict[comp_uuid][0]
-                            satisfied = by_comp_dict[comp_uuid][1]
+                        inherited, satisfied = by_comp_dict.get(comp_uuid, ([], []))
 
                         if leveraged_info.inherited is not None:
                             inherited.append(leveraged_info.inherited)
@@ -267,10 +256,6 @@ class ExportReader:
                         by_comp_dict[comp_uuid] = (inherited, satisfied)
 
                 markdown_dict[control_dir] = by_comp_dict
-
-                # If there is information in the by_component dictionary, mark the component as leveraged
-                if by_comp_dict:
-                    is_comp_leveraged = True
 
             if is_comp_leveraged:
                 self._mapped_components.append(comp_dir)
