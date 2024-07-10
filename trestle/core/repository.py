@@ -388,7 +388,7 @@ class AgileAuthoring(Repository):
         markdown_dir: str,
         set_parameters: bool = False,
         regenerate: bool = False,
-        version: str = ''
+        version: Optional[str] = None
     ) -> bool:
         """Assemble catalog markdown into OSCAL Catalog in JSON."""
         logger.debug(f'Assembling model {name} of type catalog.')
@@ -423,10 +423,10 @@ class AgileAuthoring(Repository):
         markdown_dir: str,
         set_parameters: bool = False,
         regenerate: bool = False,
-        version: str = '',
-        sections: str = '',
-        required_sections: str = '',
-        allowed_sections: str = ''
+        version: Optional[str] = None,
+        sections: Optional[str] = None,
+        required_sections: Optional[str] = None,
+        allowed_sections: Optional[str] = None
     ) -> bool:
         """Assemble profile markdown into OSCAL Profile in JSON."""
         logger.debug(f'Assembling model {name} of type profile.')
